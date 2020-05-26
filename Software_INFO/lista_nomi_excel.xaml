@@ -1,0 +1,48 @@
+﻿<Window x:Class="IP_ADDRESS.lista_nomi_excel"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:IP_ADDRESS"
+        mc:Ignorable="d"
+        Title="lista_nomi_excel" Height="450" Width="800" WindowStartupLocation="CenterScreen">
+    <Grid x:Name="grid" Margin="10" Grid.Column="1" Grid.Row="1">
+        <Grid.ColumnDefinitions >
+            <ColumnDefinition />
+            <ColumnDefinition />
+            <ColumnDefinition />
+            <ColumnDefinition />
+            <ColumnDefinition />
+            <ColumnDefinition />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition />
+            <RowDefinition />
+            <RowDefinition />
+            <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition />
+        </Grid.RowDefinitions>
+
+        <Button x:Name="buttonOk_selection" Grid.Column="8" Grid.Row="8"  Width="150" HorizontalAlignment="Center" 
+            Height="40" Click="Select_and_Close" BorderBrush="{x:Null}" Foreground="#FF212121" Background="Ivory">
+            Apri
+        </Button>
+
+
+        <DataGrid x:Name="datagrid_excel"
+                  Grid.Column="1" Grid.Row="0" Grid.ColumnSpan="4" Grid.RowSpan="8">
+            <!--
+            <DataGrid.Columns>
+                <DataGridTextColumn Binding="{Binding name}" Header="Nome foglio" />
+                <DataGridTextColumn Binding="{Binding state}" Header="Selezionato" />
+                <DataGridCheckBoxColumn Binding="{Binding state}" Header="Selezionato" />
+            </DataGrid.Columns>
+            -->
+        </DataGrid>
+
+    </Grid>
+</Window>

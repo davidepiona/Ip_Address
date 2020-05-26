@@ -14,6 +14,11 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.IO;
 using System.Collections;
+using System.Security;
+using System.Diagnostics;
+using System.Windows.Threading;
+using System.Windows.Controls.Primitives;
+using IP_ADDRESS;
 
 namespace IP_Address
 {
@@ -36,128 +41,287 @@ namespace IP_Address
         private bool abilitation = false;
         List<string> tuttiFile = new List<string>();
         List<Ip> indirizziTxt = new List<Ip>();
+        List<Ip> filterList = new List<Ip>();
+        private bool cambiamento = true;
+        private int pageNumber=1;
+        private bool EnableColori = false;
 
         /// <summary>
         /// Il costruttore inizializza il componenti. Legge i programmi da file e li scrive nella DataGrid.
         /// </summary>
         public Software()
         {
+            Console.WriteLine("Inizializzazione");
             InitializeComponent();
-            PreviewKeyDown += new KeyEventHandler(PreviewKeyDown2);
+            dataGrid = this.FindName("dataGrid") as DataGrid;
+            ComboBox PageNumber = this.FindName("PageNumberComboBox") as ComboBox;
+            PageNumber.SelectedIndex = 0;
+            //PreviewKeyDown += new KeyEventHandler(PreviewKeyDown2);
             Loaded += Software_Loaded;
-            readAddress();
-            createList();
-            
-            //SetVisibility();
+            Task.Factory.StartNew(() =>
+            {
+                readAddressCSV("");
+            }).ContinueWith(task =>
+            {
+                createList();
+            dataGrid.LayoutUpdated += new EventHandler(coloraLista);
             abilitation = true;
+            }, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         ///////////////////                            FUNZIONI PRINCIPALI                             ///////////////////               
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        private void coloraLista()
+        private void coloraLista(object sender, EventArgs e)
         {
-            dataGrid = this.FindName("dataGrid") as DataGrid;
-            for (int i = 0; i < Globals.INDIRIZZI.Count; i++)
+            //Console.WriteLine("ColoraLista");
+            if (cambiamento && EnableColori)
             {
-                if (Globals.INDIRIZZI[i].presenza)
+                Console.WriteLine("COLORALISTA");
+                dataGrid = this.FindName("dataGrid") as DataGrid;
+                var row = dataGrid.ItemContainerGenerator.ContainerFromIndex(filterList.Count - 1) as DataGridRow;
+                if (row == null)
                 {
-                    var row = dataGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
-                    row.Background = Brushes.Green;
+                    return;
                 }
+
+                for (int i = 0; i < filterList.Count; i++)
+                {
+                    row = dataGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
+                    if (row != null)
+                    {
+                        //Console.WriteLine(filterList[i].confronto);
+                        //if (filterList[i].presenza == 1 && (filterList[i].confronto == 1 || filterList[i].confronto == 0))
+                        //{
+                        //    row.Background = Brushes.LightGreen;
+                        //}
+                        //else if (filterList[i].presenza == 1 && filterList[i].confronto == 2)
+                        //{
+                        //    row.Background = Brushes.Yellow;
+                        //}
+                        //else if (filterList[i].presenza == 0 && filterList[i].confronto == 1)
+                        //{
+                        //    row.Background = Brushes.Red;
+                        //}
+                        //else
+                        //{
+                        //    row.Background = Brushes.White;
+                        //}
+                        if (filterList[i].presenza == 1)
+                        {
+                            row.Background = Brushes.Yellow;
+                        }
+                        else if (filterList[i].presenza == 2)
+                        {
+                            row.Background = Brushes.LightGreen;
+                        }
+                        else if (filterList[i].presenza == 3)
+                        {
+                            row.Background = Brushes.Red;
+                        }
+                        else
+                        {
+                            row.Background = Brushes.White;
+                        }
+                    }
+                }
+                cambiamento = false;
             }
         }
         /// <summary>
         /// Legge i programmi da file .csv e li salva nella lista programmi.
         /// </summary>
-        private void readAddress()
+        private void readAddressCSV(string path)
         {
-            int j = 0;
+            Console.WriteLine("ReadAddressCSV");
             try
             {
                 if (Globals.INDIRIZZI == null)
                 {
                     Globals.INDIRIZZI = new List<Ip>();
-                    Globals.log.Info("Lettura PROGRAMMI.csv");
-                    var file = File.OpenRead(Globals.DATI + @"INDIRIZZI.csv");
-                    var reader = new StreamReader(file);
-                    while (!reader.EndOfStream)
-                    {
-                        string[] line = reader.ReadLine().Split(';');
+                }
+                Globals.INDIRIZZI.Clear();
+                if (path.Equals(""))
+                {
+                    path = Globals.DATI + @"INDIRIZZI.csv";
+                }
+                Globals.log.Info("Lettura di: " + path);
+                var file = File.OpenRead(path);
+                var reader = new StreamReader(file);
+                while (!reader.EndOfStream)
+                {
+                    string[] line = reader.ReadLine().Split(';');
 
-                        if(line.Length == 3)
-                        {
-                            int a = int.Parse(line[0].Substring(0, 3));
-                            int b = int.Parse(line[0].Substring(4, 3));
-                            int c = int.Parse(line[0].Substring(8, 3));
-                            int d = int.Parse(line[0].Substring(12, line[0].Length-12));
-                            bool presente = line[2].Equals("True") ? true : false;
-                            Globals.INDIRIZZI.Add(new Ip(a, b, c, d, line[1], null, null, presente));
-                        }
-                        //if (line.Length == 9)
-                        //{
-                        //    Globals.INDIRIZZI.Add(new Programma(Int32.Parse(line[0]), line[1], line[2], line[3], line[4].Equals("True"), line[5], line[6], line[7], line[8].Equals("True")));
-                        //}
-                        //j++;
-                        //Console.WriteLine("LETTO"+j + "   "+ Int32.Parse(line[0]));
-                    }
-                    file.Close();
-                    foreach (Ip ip in Globals.INDIRIZZI)
+                    if (line.Length == 3)
                     {
-                        Console.WriteLine(ip.ipCompleto + " --- " + ip.descrizione);
+                        int a = int.Parse(line[0].Substring(0, 3));
+                        int b = int.Parse(line[0].Substring(4, 3));
+                        int c = int.Parse(line[0].Substring(8, 3));
+                        int d = int.Parse(line[0].Substring(12, line[0].Length - 12));
+                        int presente = int.Parse(line[2]);
+                        Globals.INDIRIZZI.Add(new Ip(a, b, c, d, line[1], null, null, presente));
                     }
                 }
+                file.Close();
+                confronto();
             }
             catch (IOException)
             {
-                string msg = "E01 - Il file " + Globals.DATI + @"PROGRAMMI.csv non esiste o è aperto da un altro programma. \n";
+                string msg = "E01 - Il file " + path + " non esiste o è aperto da un altro programma. \n";
                 MessageBox.Show(msg, "E01"
                                      , MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.RightAlign);
                 Globals.log.Fatal(msg);
             }
             catch (FormatException)
             {
-                string msg = "E02 - Il file " + Globals.DATI + @"PROGRAMMI.csv" +
-                    " è in un formato non corretto. \nProblema riscontrato all'informazione numero: " + j;
+                string msg = "E02 - Il file " + path + " è in un formato non corretto.";
+                MessageBox.Show(msg, "E02", MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.RightAlign);
+                Globals.log.Error(msg);
+            }
+        }
+        private void ReadAddressTxt(string path)
+        {
+            Globals.log.Info("Lettura txt");
+            try
+            {
+                if (indirizziTxt == null)
+                {
+                    indirizziTxt = new List<Ip>();
+                }
+                indirizziTxt.Clear();
+                Console.WriteLine("PERCORSO: " + path);
+                if (path.Equals(""))
+                {
+                    path = Globals.DATI + @"export.txt";
+                }
+                Console.WriteLine(Globals.DATI + @"export.txt");
+                Globals.log.Info("Lettura di: " + path);
+                var file = File.OpenRead(path);
+                var reader = new StreamReader(file);
+                reader.ReadLine();
+                while (!reader.EndOfStream)
+                {
+                    string[] line = reader.ReadLine().Split('\t');
+                    int a = int.Parse(line[0].Substring(0, 3));
+                    int b = int.Parse(line[0].Substring(4, 3));
+                    int c = int.Parse(line[0].Substring(8, 3));
+                    int d = int.Parse(line[0].Substring(12, line[0].Length - 12));
+                    string MAC = "";
+                    int presente = 1;
+                    if (!line[1].Equals(""))
+                    {
+                        MAC = line[1];
+                        presente = 2;
+                    }
+                    indirizziTxt.Add(new Ip(a, b, c, d, null, MAC, null, presente));
+                }
+                file.Close();
+                confronto();
+            }
+            catch (IOException)
+            {
+                string msg = "E11 - Il file " + path + " non esiste o è aperto da un altro programma. \n";
+                MessageBox.Show(msg, "E01"
+                                     , MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.RightAlign);
+                Globals.log.Fatal(msg);
+            }
+            catch (FormatException)
+            {
+                string msg = "E12 - Il file " + path + " è in un formato non corretto.";
                 MessageBox.Show(msg, "E02", MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.RightAlign);
                 Globals.log.Error(msg);
             }
         }
 
+        public void readAddressEXCEL(string path)
+        {
+            Console.WriteLine("ReadAddressEXCEL");
+            try
+            {
+                if (Globals.INDIRIZZI == null)
+                {
+                    Globals.INDIRIZZI = new List<Ip>();
+                }
+                Globals.INDIRIZZI.Clear();
+                if (path.Equals(""))
+                {
+                    Globals.log.Info("Percorso nullo");
+                    return;
+                }
+                
+                Globals.log.Info("Lettura di: " + path + " alla pagina: " + pageNumber);
+                Console.WriteLine("aperto excel");
+
+
+                Excel excel = new Excel(path);
+                var listaNomi = excel.SheetsName();
+                
+                
+                lista_nomi_excel lista_excel = new lista_nomi_excel(excel, listaNomi);
+                lista_excel.ShowDialog();
+
+                
+                confronto();
+            }
+            catch (IOException)
+            {
+                string msg = "E31 - Il file " + path + " non esiste o è aperto da un altro programma. \n";
+                MessageBox.Show(msg, "E31"
+                                     , MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.RightAlign);
+                Globals.log.Fatal(msg);
+            }
+            catch (FormatException)
+            {
+                string msg = "E32 - Il file " + path + " è in un formato non corretto.";
+                MessageBox.Show(msg, "E32", MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.RightAlign);
+                Globals.log.Error(msg);
+            }
+            
+        }
+
+        private void confronto()
+        {
+            foreach (Ip ip in indirizziTxt)
+            {
+                Ip ricercaIp = Globals.INDIRIZZI.Find(r => r.id == ip.id);
+                if (ricercaIp != null)
+                {
+                    if (ricercaIp.presenza == 2 && ip.presenza == 2)
+                    {
+                        ricercaIp.confronto = 2;    //OK, ci dovrebbe essere e c'è
+                    }
+                    else if ((ricercaIp.presenza == 0 || ricercaIp.presenza == 1) && ip.presenza == 2)
+                    {
+                        ricercaIp.confronto = 1;    //MALE, non ci dovrebbe essere e c'è
+                    }
+                    else if (ricercaIp.presenza == 2 && ip.presenza == 1)
+                    {
+                        ricercaIp.confronto = 3;    //INCOGNITA, ci dovrebbe essere e ora non c'è
+                    }
+                }
+            }
+        }
         /// <summary>
         /// Aggiunge la lista di programmi alla DataGrid dopo averla svuotata.
         /// </summary>
         private void createList()
         {
+            cambiamento = false;
             Console.WriteLine("Create List");
             Globals.log.Info("Create List");
             DataGrid dataGrid = this.FindName("dataGrid") as DataGrid;
-            dataGrid.EnableRowVirtualization = false;
+            dataGrid.EnableRowVirtualization = true;
             dataGrid.SelectionChanged += new SelectionChangedEventHandler(ChangePreview);
             dataGrid.Items.Clear();
             int i = 0;
             foreach (Ip p in Globals.INDIRIZZI)
             {
-                dataGrid.Items.Add(p);
+                //dataGrid.Items.Add(p);
+                filterList.Add(p);
                 i++;
             }
-            
-            
-            //var itemsSource = dataGrid.ItemsSource as IEnumerable;
-            ////if (null == itemsSource) yield return null;
-            //foreach (var item in itemsSource)
-            //{
-            //    dataGrid.EnableRowVirtualization = false;
-            //    var row = dataGrid.ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
-            //    //if (null != row) yield return row;
-            //}
-
-            //for (int j = 0; j < dataGrid.Items.Count; j++)
-            //{
-            //    Console.WriteLine("a");
-            //    DataGridRow row = (DataGridRow)dataGrid.ItemContainerGenerator.ContainerFromIndex(j);
-            //    row.Background = Brushes.Red;
-            //}
+            dataGrid.ItemsSource = filterList;
+            cambiamento = true;
         }
 
         /// <summary>
@@ -173,29 +337,23 @@ namespace IP_Address
             DataGrid dataGrid = this.FindName("dataGrid") as DataGrid;
             if (dataGrid != null)
             {
-                dataGrid.Items.Clear();
-                int i = 0;
+                //dataGrid.Items.Clear();
+                filterList.Clear();
                 foreach (Ip p in Globals.INDIRIZZI)
                 {
                     if (p.toName().IndexOf(filter, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
                     {
-                        dataGrid.Items.Add(p);
+                        //dataGrid.Items.Add(p);
+                        filterList.Add(p);
                     }
                 }
-                    //if (obsoleti == null || p.obsoleto == obsoleti)
-                    //{
-                    //    if (p.toName().IndexOf(filter, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
-                    //    {
-                    //        if (i == 0)
-                    //        {
-                    //            primo = p;
-                    //        }
-                    //        dataGrid.Items.Add(p);
-                    //        i++;
-                    //    }
-                    //}
-                }
+                dataGrid.ItemsSource = null;
+                dataGrid.ItemsSource = filterList;
+                cambiamento = true;
+            }
+            
         }
+
 
         /// <summary>
         /// Aggiorna gli elementi nella DataGrid DOPO AVER CREATO NUOVI PROGRAMMI:
@@ -204,36 +362,38 @@ namespace IP_Address
         /// - aggiunge tutti i programmi presenti dopo aver svuotato la DataGrid
         /// - seleziona l'ultima informazione della lista (quello appena creato in teoria)
         /// </summary>
-        private void readAgainListPrograms(object sender, System.Windows.Forms.FormClosedEventArgs e)
-        {
-            Console.WriteLine("UpdateList2");
-            Globals.log.Info("UpdateList2");
-            Globals.INDIRIZZI = null;
-            readAddress();
-            DataGrid dataGrid = this.FindName("dataGrid") as DataGrid;
-            if (dataGrid != null)
-            {
-                dataGrid.Items.Clear();
-                int i = 0;
-                foreach (Ip p in Globals.INDIRIZZI)
-                {
-                    dataGrid.Items.Add(p);
-                    i++;
-                }
-                if (newProgram)
-                {
-                    newProgram = false;
-                    dataGrid.SelectedIndex = Globals.INDIRIZZI.Last().id - 1;
-                    dataGrid.ScrollIntoView(Globals.INDIRIZZI.Last());
-                }
-            }
-        }
+        //private void readAgainListPrograms(object sender, System.Windows.Forms.FormClosedEventArgs e)
+        //{
+        //    Console.WriteLine("UpdateList2");
+        //    Globals.log.Info("UpdateList2");
+        //    Globals.INDIRIZZI = null;
+        //    readAddressCSV("");
+        //    DataGrid dataGrid = this.FindName("dataGrid") as DataGrid;
+        //    if (dataGrid != null)
+        //    {
+        //        //dataGrid.Items.Clear();
+        //        int i = 0;
+        //        foreach (Ip p in Globals.INDIRIZZI)
+        //        {
+        //            dataGrid.Items.Add(p);
+        //            i++;
+        //        }
+        //        if (newProgram)
+        //        {
+        //            newProgram = false;
+        //            dataGrid.SelectedIndex = Globals.INDIRIZZI.Last().id - 1;
+        //            dataGrid.ScrollIntoView(Globals.INDIRIZZI.Last());
+        //        }
+        //    }
+        //}
 
         /// <summary>
         /// Metodo per la riscrittura di Globals.INDIRIZZI nel file PROGRAMMI.csv
         /// </summary>
         private void scriviCSV()
         {
+            Console.WriteLine("ScriviCsv");
+
             List<string> lines = new List<string>();
             int i = 0;
             foreach (Ip p in Globals.INDIRIZZI)
@@ -262,9 +422,9 @@ namespace IP_Address
         /// </summary>
         public void Software_Loaded(object sender, RoutedEventArgs e)
         {
+            Console.WriteLine("SoftwareLoaded");
             TextBox textBox = this.FindName("TextBox") as TextBox;
             textBox.Focus();
-            coloraLista();
         }
 
         /// <summary>
@@ -300,43 +460,7 @@ namespace IP_Address
         ///////////////////                                BOTTONI                                     ///////////////////               
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        /// <summary>
-        /// Controlla se esiste un file programma.docx nel programma attualmente visualizzato 
-        /// - se esiste: apre il file docx
-        /// - se non esiste : crea un file docx con tutte le informazioni del programma
-        /// </summary>
-        private void Load_Txt_Address(object sender, RoutedEventArgs e)
-        {
-            Globals.log.Info("Lettura txt");
-            var file = File.OpenRead(Globals.DATI + @"export.txt");
-            var reader = new StreamReader(file);
-            reader.ReadLine();
-            while (!reader.EndOfStream)
-            {
-                string[] line = reader.ReadLine().Split('\t');
-                int a = int.Parse(line[0].Substring(0, 3));
-                int b = int.Parse(line[0].Substring(4, 3));
-                int c = int.Parse(line[0].Substring(8, 3));
-                int d = int.Parse(line[0].Substring(12, line[0].Length - 12));
-                string MAC = "";
-                bool presente = false;
-                if (!line[1].Equals(""))
-                {
-                    MAC = line[1];
-                    presente = true;
-                }
-                indirizziTxt.Add(new Ip(a, b, c, d, null, line[1], null, presente));
-            }
-            foreach(Ip ip in indirizziTxt)
-            {
-                Ip ricercaIp = Globals.INDIRIZZI.Find(r => r.id == ip.id);
-                if (ricercaIp != null)
-                {
-                    ricercaIp.confronto = ip.presenza;
-                }
-            }
-            updateList("", null);
-        }
+
 
         /// <summary>
         /// Bottone che attiva la scrittura del file PROGRAMMI.csv
@@ -344,8 +468,132 @@ namespace IP_Address
         private void Button_Save(object sender, RoutedEventArgs e)
         {
             scriviCSV();
+            cambiamento = true;
+            updateList("", null);
             Console.WriteLine("Salvato PROGRAMMI.csv");
             Globals.log.Info("Salvato PROGRAMMI.csv");
+        }
+
+        private void Open_Excel(object sender, RoutedEventArgs e)
+        {
+            ComboBox PageNumber = this.FindName("PageNumberComboBox") as ComboBox;
+            pageNumber = PageNumber.SelectedIndex + 1;
+            //System.Windows.Forms.OpenFileDialog openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            //if (openFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            //{
+            //    try
+            //    {
+            //        Task.Factory.StartNew(() =>
+            //        {
+            //            readAddressEXCEL(openFileDialog1.FileName);
+            //        }).ContinueWith(task =>
+            //        {
+            //            updateList("", null);
+            //        }, TaskScheduler.FromCurrentSynchronizationContext()); 
+
+            //    }
+            //    catch (SecurityException ex)
+            //    {
+            //        MessageBox.Show($"Security error.\n\nError message: {ex.Message}\n\n" +
+            //        $"Details:\n\n{ex.StackTrace}");
+            //    }
+            //}
+            var path="";
+            System.Windows.Forms.OpenFileDialog openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            if (openFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                try
+                {
+                    path = openFileDialog1.FileName;
+                    if (Globals.INDIRIZZI == null)
+                    {
+                        Globals.INDIRIZZI = new List<Ip>();
+                    }
+                    Globals.INDIRIZZI.Clear();
+                    if (path.Equals(""))
+                    {
+                        Globals.log.Info("Percorso nullo");
+                        return;
+                    }
+
+                    Globals.log.Info("Lettura di: " + path + " alla pagina: " + pageNumber);
+                    Console.WriteLine("aperto excel");
+
+
+                    Excel excel = new Excel(path);
+                    var listaNomi = excel.SheetsName();
+
+                    lista_nomi_excel lista_excel = new lista_nomi_excel(excel, listaNomi);
+                    lista_excel.ShowDialog();
+                    updateList("", null);
+                    confronto();
+                }
+                catch (SecurityException ex)
+                {
+                    MessageBox.Show($"Security error.\n\nError message: {ex.Message}\n\n" +
+                    $"Details:\n\n{ex.StackTrace}");
+                }
+                catch (IOException)
+                {
+                    string msg = "E31 - Il file " + path + " non esiste o è aperto da un altro programma. \n";
+                    MessageBox.Show(msg, "E31"
+                                         , MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.RightAlign);
+                    Globals.log.Fatal(msg);
+                }
+                catch (FormatException)
+                {
+                    string msg = "E32 - Il file " + path + " è in un formato non corretto.";
+                    MessageBox.Show(msg, "E32", MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.RightAlign);
+                    Globals.log.Error(msg);
+                }
+        }
+
+        }
+
+        private void Open_Csv(object sender, RoutedEventArgs e)
+        {
+            System.Windows.Forms.OpenFileDialog openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            if (openFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                try
+                {
+                    Task.Factory.StartNew(() =>
+                    {
+                        readAddressCSV(openFileDialog1.FileName);
+                    }).ContinueWith(task =>
+                    {
+                        updateList("", null);
+                    }, TaskScheduler.FromCurrentSynchronizationContext());
+                }
+                catch (SecurityException ex)
+                {
+                    MessageBox.Show($"Security error.\n\nError message: {ex.Message}\n\n" +
+                    $"Details:\n\n{ex.StackTrace}");
+                }
+            }
+        }
+
+        private void Open_Txt(object sender, RoutedEventArgs e)
+        {
+            System.Windows.Forms.OpenFileDialog openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            if (openFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                try
+                {
+                    Task.Factory.StartNew(() =>
+                    {
+                        ReadAddressTxt(openFileDialog1.FileName);
+                    }).ContinueWith(task =>
+                    {
+                        updateList("", null);
+                    }, TaskScheduler.FromCurrentSynchronizationContext());
+                }
+                catch (SecurityException ex)
+                {
+                    MessageBox.Show($"Security error.\n\nError message: {ex.Message}\n\n" +
+                    $"Details:\n\n{ex.StackTrace}");
+                }
+            }
         }
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -359,15 +607,27 @@ namespace IP_Address
         }
 
         /// <summary>
+        /// Al doppio click sulla riga apre la cartella del filesystem.
+        /// </summary>
+        private void LostFocusCell(object sender, RoutedEventArgs e)
+        {
+            Console.WriteLine("LostFocus");
+            cambiamento = true;
+            confronto();
+        }
+
+        /// <summary>
         /// Funzioni per consentire di navigare la DataGrid con le freccie su e giù mentre si effettua una ricerca.
         /// Con invio si apre la cartella del filesystem dell'informazione selezionata
         /// </summary>
         private void PreviewKeyDown2(object sender, KeyEventArgs e)
         {
+            Console.WriteLine("PreviewKeyDown");
+
             if (e.Key == Key.Up)
             {
                 DataGrid dataGrid;
-                    dataGrid = this.FindName("dataGrid") as DataGrid;
+                dataGrid = this.FindName("dataGrid") as DataGrid;
                 dataGrid.Focus();
                 if (dataGrid.SelectedIndex > 0)
                 {
@@ -378,7 +638,7 @@ namespace IP_Address
             if (e.Key == Key.Down)
             {
                 DataGrid dataGrid;
-                    dataGrid = this.FindName("dataGrid") as DataGrid;
+                dataGrid = this.FindName("dataGrid") as DataGrid;
                 dataGrid.SelectedIndex = dataGrid.SelectedIndex + 1;
                 if (dataGrid.SelectedItem != null)
                 {
@@ -398,6 +658,14 @@ namespace IP_Address
         {
             Console.WriteLine("Change Preview");
             Globals.log.Info("Change Preview");
+            if (EnableColori)
+            {
+                dataGrid.EnableRowVirtualization = false;
+            }
+            else
+            {
+                dataGrid.EnableRowVirtualization = true;
+            }
             //RichTextBox richTextBox = this.FindName("richTextBox") as RichTextBox;
             //Button button = this.FindName("buttonOpenDocx") as Button;
             try
@@ -415,7 +683,8 @@ namespace IP_Address
                             var doc = Xceed.Words.NET.DocX.Load(file);
                             //richTextBox.Document.Blocks.Clear();
                             //richTextBox.AppendText(doc.Text);
-                        }catch(IOException)
+                        }
+                        catch (IOException)
                         {
                             string msg = "E52 - Il file " + file + " non è accessibile";
                             Globals.log.Error(msg);
@@ -433,6 +702,7 @@ namespace IP_Address
             {
                 //richTextBox.Visibility = Visibility.Hidden;
                 //button.Visibility = Visibility.Visible;
+                cambiamento = false;
                 Globals.log.Warn("Eccezione in changePreview: " + nre);
             }
             if (!Globals.ANTEPRIME)
@@ -449,10 +719,12 @@ namespace IP_Address
         /// </summary>
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-                updateList(((TextBox)sender).Text, obs);
-                //DataGrid dataGrid = this.FindName("dataGrid") as DataGrid;
-                //dataGrid.SelectedIndex = 0;
-                //dataGrid.ScrollIntoView(p);
+            Console.WriteLine("TextChanged");
+            cambiamento = true;
+            updateList(((TextBox)sender).Text, obs);
+            //DataGrid dataGrid = this.FindName("dataGrid") as DataGrid;
+            //dataGrid.SelectedIndex = 0;
+            //dataGrid.ScrollIntoView(p);
         }
 
         private void updateFileList(string filter)
@@ -466,15 +738,15 @@ namespace IP_Address
                 //int i = 0;
                 foreach (string s in tuttiFile)
                 {
-                        if (s.IndexOf(filter, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
-                        {
-                            //if (i == 0)
-                            //{
-                            //    primo = p;
-                            //}
-                            dataGridFiles.Items.Add(s);
-                            //i++;
-                        }
+                    if (s.IndexOf(filter, 0, StringComparison.CurrentCultureIgnoreCase) != -1)
+                    {
+                        //if (i == 0)
+                        //{
+                        //    primo = p;
+                        //}
+                        dataGridFiles.Items.Add(s);
+                        //i++;
+                    }
                 }
             }
         }
@@ -506,6 +778,34 @@ namespace IP_Address
         //        updateList("", obs);
         //    }
         //}
+
+
+        /// <summary>
+        /// Controllo colorazione lista
+        /// Checkbox Checked
+        /// </summary>
+        private void CheckBox_Colori_Checked(object sender, RoutedEventArgs e)
+        {
+            Globals.log.Info("Checkbox Colori Checked");
+            EnableColori = true;
+            DataGrid dataGrid;
+            dataGrid = this.FindName("dataGrid") as DataGrid;
+            ChangePreview(dataGrid, null);
+
+        }
+
+        /// <summary>
+        /// Controllo colorazione lista
+        /// Checkbox Unchecked
+        /// </summary>
+        private void CheckBox_Colori_Unchecked(object sender, RoutedEventArgs e)
+        {
+            Globals.log.Info("Checkbox Colori Unchecked");
+            EnableColori = false;
+            DataGrid dataGrid;
+            dataGrid = this.FindName("dataGrid") as DataGrid;
+            ChangePreview(dataGrid, null);
+        }
 
         /// <summary>
         /// Controllo cambiamento valore della checkbox che permette di filtrare i programmi per obsoleti e non. 
@@ -587,9 +887,10 @@ namespace IP_Address
         private void Menu_percorsi(object sender, RoutedEventArgs e)
         {
             Form_percorsi form = new Form_percorsi();
-            form.FormClosed
-                    += new System.Windows.Forms.FormClosedEventHandler(this.readAgainListPrograms);
-            form.ShowDialog();
+            //form.FormClosed
+            //        += new System.Windows.Forms.FormClosedEventHandler(this.readAgainListPrograms);
+            //form.ShowDialog();
+            Globals.log.Error("avrei dovuto leggere ancora la lista degli ip ma non l'ho fatto - private void Menu_percorsi");
         }
 
         /// <summary>

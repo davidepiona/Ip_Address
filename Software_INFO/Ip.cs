@@ -21,13 +21,13 @@ namespace IP_Address
         public string ipCompleto { get; set; }
         public string MAC { get; set; }
         public string marca { get; set; }
-        public bool presenza { get; set; }
-        public bool? confronto { get; set; }
+        public int presenza { get; set; }       // 0 = non so nulla     1 = presente    2 = assente
+        public int confronto { get; set; }      // 0 =    1 =     2 = 
 
         /// <summary>
         /// Inizializza gli attributi coi valori ricevuto
         /// </summary>
-        public Ip(int a, int b, int c, int d, string descrizione, string MAC, string marca, bool presenza)
+        public Ip(int a, int b, int c, int d, string descrizione, string MAC, string marca, int presenza)
         {
             this.id = c * 1000 + d;
             this.a = a;
@@ -46,8 +46,7 @@ namespace IP_Address
         /// Vengono utilizzate le parole contenute in numero, nome e descrizione.
         /// </summary>
         public string toName() {
-            return ipCompleto + MAC + descrizione;
+            return ipCompleto + descrizione;
         }
-
     }
 }
